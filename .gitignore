@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Datos del reto (no versionar — pesados y con datos de clientes)
+data/
