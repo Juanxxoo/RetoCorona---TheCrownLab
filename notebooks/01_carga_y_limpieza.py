@@ -51,33 +51,66 @@ print(f"Clientes sin Primera Fecha recalculada (deberían ser 0): "
       f"{cli_clean['Primera Fecha'].isna().sum()}")
 
 # %% Fix 2 — Valor vs. Cantidad × Precio: no es un factor fijo, son múltiplos de 10
-# El factor de empaque no es siempre 2.65: en ~235,000 filas, Cantidad o Precio
-# quedaron con un dígito de más (factor real = 2.65, 26.5, 265 o 2650 según la fila).
-# Es un problema de escala en esas dos columnas, NO en Valor -- por eso no se
-# descartan filas de Valor, solo se marca cuáles tienen Cantidad/Precio en otra
-# escala (útil si más adelante se usa Cantidad para análisis de unidades, ej. m²).
+# Corona confirmó que Cantidad, Precio y Valor fueron anonimizados con factores distintos.
+# Por eso no se exige que Cantidad × Precio = Valor en la base entregada.
+# Este bloque se conserva como diagnóstico y NO se eliminan filas por esta diferencia.
+
 CANDIDATOS_FACTOR = [2.65, 26.5, 265.0, 2650.0]
 
 valido = (trans["Cantidad"].notna() & trans["Precio"].notna() & (trans["Valor"] > 0)
           & (trans["Cantidad"] > 0) & (trans["Precio"] > 0))
-factor_crudo = (trans.loc[valido, "Cantidad"] * trans.loc[valido, "Precio"]) / trans.loc[valido, "Valor"]
-errores = pd.DataFrame({c: (factor_crudo - c).abs() / c for c in CANDIDATOS_FACTOR})
+
+factor_crudo = (
+    trans.loc[valido, "Cantidad"] * trans.loc[valido, "Precio"]
+) / trans.loc[valido, "Valor"]
+
+errores = pd.DataFrame({
+    c: (factor_crudo - c).abs() / c
+    for c in CANDIDATOS_FACTOR
+})
 
 trans["escala_detectada"] = pd.NA
 trans["escala_valida"] = pd.NA
-trans.loc[valido, "escala_detectada"] = errores.idxmin(axis=1).astype(float).values
-trans.loc[valido, "escala_valida"] = (errores.min(axis=1) <= 0.02).values
+
+trans.loc[valido, "escala_detectada"] = (
+    errores.idxmin(axis=1).astype(float).values
+)
+
+trans.loc[valido, "escala_valida"] = (
+    errores.min(axis=1) <= 0.02
+).values
 
 print(trans.loc[valido, "escala_detectada"].value_counts())
-n_atipicos = (trans["escala_valida"] == False).sum()
-print(f"Filas realmente sin explicar por ningún múltiplo (revisar aparte): "
-      f"{n_atipicos} ({n_atipicos/valido.sum():.3%})")
-print(f"Filas sin Cantidad/Precio para verificar (Valor se conserva igual): "
-      f"{(~valido).sum()}")
 
-trans_normales = trans[trans["escala_valida"] != False].copy()  # conserva válidas + no verificables
-trans_atipicos = trans[trans["escala_valida"] == False].copy()
-print(f"\nDataset final: {len(trans_normales)} filas ({len(trans_normales)/len(trans):.2%} del total)")
+n_atipicos = (trans["escala_valida"] == False).sum()
+
+print(
+    f"Filas que no siguen los factores observados: "
+    f"{n_atipicos} ({n_atipicos/valido.sum():.3%})"
+)
+
+print(
+    f"Filas fuera del diagnóstico "
+    f"(faltantes, ceros, negativos o devoluciones): "
+    f"{(~valido).sum()}"
+)
+
+trans_atipicos = trans[
+    trans["escala_valida"] == False
+].copy()
+
+print(
+    "Estas filas NO se eliminan del análisis "
+    "por tratarse de datos anonimizados."
+)
+
+# Se conservan TODAS las transacciones originales
+trans_normales = trans.copy()
+
+print(
+    f"\nDataset final: {len(trans_normales)} filas "
+    f"({len(trans_normales)/len(trans):.2%} del total)"
+)
 
 # %% Fix 3 — Tratamiento de datos
 # Solo ~50% de los clientes consintió. Decisión de negocio/ética, no solo
