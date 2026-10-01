@@ -104,7 +104,7 @@ print(
     "por tratarse de datos anonimizados."
 )
 
-# Se conservan TODAS las transacciones originales
+# Se conservan todas las transacciones originales
 trans_normales = trans.copy()
 
 print(
@@ -122,6 +122,12 @@ cli_con_consentimiento = cli_clean[cli_clean["Tratamiento Datos"] == "SÍ"]
 df = trans_normales.merge(cli_clean, on="Cliente", how="left")
 print(f"Dataset final: {df.shape}")
 print(f"Clientes sin match en maestro (deberían ser ~0): {df['Tipo Cliente'].isna().sum()}")
+
+# %% Revisar cliente sin match en maestro
+sin_match = df[df["Tipo Cliente"].isna()].copy()
+
+print(sin_match)
+print("\nClientes únicos sin match:", sin_match["Cliente"].nunique())
 
 # %% Checkpoint — guarda en formato rápido de recargar (requiere pyarrow)
 df.to_parquet("../data/dataset_limpio.parquet", index=False)
