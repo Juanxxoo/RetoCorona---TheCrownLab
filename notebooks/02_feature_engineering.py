@@ -40,19 +40,29 @@ print(cli_unico["antiguedad_dias"].describe())
 # ajústenlos si encuentran una fuente más específica para su análisis.
 # "Empresa" no tiene Edad (por diseño, es un cliente jurídico) -- se deja como
 # categoría propia en vez de descartarla o forzarla a una generación.
-def clasificar_generacion(edad):
-    if pd.isna(edad):
-        return "No aplica (Empresa)"
-    elif edad <= 29:
-        return "Gen Z"
-    elif edad <= 45:
-        return "Millennial"
-    elif edad <= 61:
-        return "Gen X"
-    else:
-        return "Boomer"
 
-cli_unico["generacion"] = cli_unico["Edad"].apply(clasificar_generacion)
+import numpy as np
+import pandas as pd
+
+condiciones = [
+    cli_unico["Tipo Cliente"] == "Empresa",
+    cli_unico["Edad"].isna(),
+    cli_unico["Edad"] <= 29,
+    cli_unico["Edad"] <= 45,
+    cli_unico["Edad"] <= 61
+]
+
+opciones = [
+    "No aplica (Empresa)",
+    "Edad no disponible",
+    "Gen Z",
+    "Millennial",
+    "Gen X"
+]
+
+# np.select evalúa en orden y asigna 'Boomer' si no cumple ninguna anterior (> 61)
+cli_unico["generacion"] = np.select(condiciones, opciones, default="Boomer")
+
 print(cli_unico["generacion"].value_counts())
 
 # %% Perfil de canasta y canal — a nivel de cliente
