@@ -177,5 +177,3 @@ for categoria in top_estacionales:
     print(f"\n{categoria}")
     print(f"Mes mínimo: {serie.idxmin()} -> {serie.min():.2f} veces su promedio")
     print(f"Mes máximo: {serie.idxmax()} -> {serie.max():.2f} veces su promedio")
-
-# %%
