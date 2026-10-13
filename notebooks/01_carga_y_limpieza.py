@@ -35,8 +35,7 @@ print(f"Transacciones: {trans.shape}, Clientes (crudo, con duplicados): {cli.sha
 # Primera Fecha directamente desde la fuente más confiable: la fecha mínima real
 # de compra en base_transaccional. Todo cliente de maestro tiene transacciones,
 # así que esto no genera nulos.
-# PENDIENTE (ver bitácora): confirmar con Corona si "Primera Fecha" representa la
-# primera compra o un evento distinto (ej. fecha de registro como cliente).
+# Confirmado con Corona: "Primera Fecha" representa la primera compra real.
 cli_clean = cli.drop_duplicates(subset="Cliente", keep="first").reset_index(drop=True)
 
 primera_compra_real = trans.groupby("Cliente")["Fecha Pedido"].min().rename("Primera Fecha_real")
@@ -113,10 +112,16 @@ print(
 )
 
 # %% Fix 3 — Tratamiento de datos
-# Solo ~50% de los clientes consintió. Decisión de negocio/ética, no solo
-# técnica — ajusten el filtro según lo que definan con Corona.
+# Solo ~50% de los clientes consintió. Decisión del equipo: se trabaja con el
+# universo completo de clientes (no se filtra) porque el análisis es agregado
+# y no genera acciones a nivel de cliente individual. Si en una fase posterior
+# (ej. piloto de recomendaciones) se llega a actuar sobre clientes puntuales,
+# se debe retomar este filtro y cruzar contra "Tratamiento Datos" == "SÍ"
+# antes de ejecutar cualquier acción sobre esos clientes específicos.
 print(cli_clean["Tratamiento Datos"].value_counts(normalize=True))
 cli_con_consentimiento = cli_clean[cli_clean["Tratamiento Datos"] == "SÍ"]
+# Nota: cli_con_consentimiento se deja calculado por si se necesita más adelante,
+# pero el join usa cli_clean (universo completo) — ver justificación arriba.
 
 # %% Join — dataset limpio final
 df = trans_normales.merge(cli_clean, on="Cliente", how="left")

@@ -177,3 +177,69 @@ for categoria in top_estacionales:
     print(f"\n{categoria}")
     print(f"Mes mínimo: {serie.idxmin()} -> {serie.min():.2f} veces su promedio")
     print(f"Mes máximo: {serie.idxmax()} -> {serie.max():.2f} veces su promedio")
+
+# %% Tabla de perfiles por categoría
+
+total_pedidos = df["ID Pedido"].nunique()
+
+# Participación
+participacion = (
+    df.groupby("Categoria")["ID Pedido"]
+    .nunique()
+    .div(total_pedidos)
+    .rename("participacion")
+)
+
+# Concentración regional (Herfindahl: suma de shares regionales al cuadrado)
+# alto = concentrada en pocas regiones, bajo = repartida uniformemente
+pedidos_region_cat = (
+    df.groupby(["Categoria", "Region"])["ID Pedido"]
+    .nunique()
+)
+share_regional = pedidos_region_cat / pedidos_region_cat.groupby("Categoria").transform("sum")
+concentracion_regional = (share_regional ** 2).groupby("Categoria").sum().rename("concentracion_regional")
+
+# Valor promedio por pedido
+valor_promedio = (
+    df.groupby("Categoria")["Valor"]
+    .mean()
+    .rename("valor_promedio")
+)
+
+# Amplitud estacional (ya la tienen de la fase 4)
+# Nota: queda NaN para categorías con soporte < 1% (quedaron fuera de
+# categorias_relevantes más arriba) — no es un error, no se calculó estacionalidad
+# para esas por bajo volumen.
+amplitud = variacion_estacional["amplitud"].rename("amplitud_estacional")
+
+# Unir todo
+perfil_categorias = pd.concat(
+    [participacion, concentracion_regional, valor_promedio, amplitud],
+    axis=1
+).reset_index()
+
+# %% Etiquetado por reglas (terciles)
+# Fix: el corte de "tercio superior" es el cuantil 0.66, no el 1.0 (que es
+# simplemente el máximo). Con el índice anterior casi todo caía en
+# "Transaccional/Base" por defecto.
+
+def etiquetar(row, cortes):
+    etiquetas = []
+    if row["participacion"] >= cortes["participacion"][1]:
+        etiquetas.append("Ancla")
+    if row["amplitud_estacional"] >= cortes["amplitud_estacional"][1]:
+        etiquetas.append("Estacional")
+    if row["concentracion_regional"] >= cortes["concentracion_regional"][1]:
+        etiquetas.append("Regional/Nicho")
+    if row["valor_promedio"] >= cortes["valor_promedio"][1]:
+        etiquetas.append("Alto valor")
+    return etiquetas if etiquetas else ["Transaccional/Base"]
+
+cortes = {
+    col: perfil_categorias[col].quantile([0.33, 0.66]).values
+    for col in ["participacion", "amplitud_estacional", "concentracion_regional", "valor_promedio"]
+}
+
+perfil_categorias["perfil"] = perfil_categorias.apply(lambda r: etiquetar(r, cortes), axis=1)
+
+perfil_categorias.sort_values("participacion", ascending=False)
