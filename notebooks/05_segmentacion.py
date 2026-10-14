@@ -643,7 +643,6 @@ print(perfil_region_top.round(2))
 
 # %%
 # SEGMENTOS DENTRO DE CADA REGIÓN
-# Ahora cambiamos la pregunta:
 # dentro de cada región, ¿qué porcentaje de clientes pertenece a cada segmento?
 
 segmentos_por_region = pd.crosstab(
@@ -660,7 +659,7 @@ print(segmentos_por_region_top.round(2))
 
 # %%
 # GENERACIÓN POR SEGMENTO
-# La tabla responde:
+# La tabla:
 # dentro de cada segmento, ¿qué composición generacional tienen sus clientes?
 
 perfil_generacion = pd.crosstab(
