@@ -1,0 +1,208 @@
+# %% [markdown]
+# # Penetración por generación y departamento — Reto Corona (Retail)
+# Pregunta de Corona: ¿dónde hay baja penetración y cómo cambia entre generaciones?
+#
+# Métrica: clientes consumidores por cada 1.000 habitantes de la misma generación
+# y departamento, con las proyecciones de población del DANE (base CNPV 2018).
+#
+# Decisiones:
+# - Solo consumidores finales (las empresas no tienen edad ni población comparable).
+# - El departamento del cliente es su región dominante de compra (99,5 % compra
+#   en una sola región).
+# - La edad en la base va de 19 a 68 años (anonimizada). Para comparar peras con
+#   peras, la población DANE se recorta al MISMO rango de edades por generación.
+# - Generación según edad en 2026 (mismos cortes de 02_feature_engineering):
+#   Gen Z 19–29, Millennial 30–45, Gen X 46–61, Boomer 62–68.
+# - Año de población: 2025 (mitad del periodo observado, ene-2024 a jul-2026).
+#   Para la comparación anual (2024 vs 2025) cada año usa su propia población.
+# - Presencia física: la base no trae la ubicación de los puntos de venta, pero
+#   cada PdV le vende ~90 % (mediana) a un solo departamento; ese es su departamento
+#   "sede". Con eso se separan dos tipos de oportunidad:
+#     * Activación: hay tienda y la penetración es baja → acción comercial
+#     * Expansión: no hay tienda → decisión de canal (digital, aliados, apertura)
+# - Brecha: clientes adicionales si el departamento llegara al percentil 75
+#   de penetración de esa generación, calculado SOLO entre departamentos con
+#   tienda (el referente justo: compararse con quien sí tiene presencia).
+
+# %% Carga
+from pathlib import Path
+import unicodedata
+import numpy as np
+import pandas as pd
+
+DATA = Path("../data")
+SALIDAS = Path("../resultados")
+SALIDAS.mkdir(exist_ok=True)
+
+ARCHIVO_DANE = DATA / "PPED-AreaSexoEdadDep-2018-2050_VP.xlsx"
+ANIO_POBLACION = 2025
+MIN_CLIENTES = 200     # debajo de esto la tasa es muy ruidosa: se reporta pero no define el P75
+
+clientes = pd.read_parquet(DATA / "features_clientes_segmentados.parquet")
+transacciones = pd.read_parquet(DATA / "dataset_limpio.parquet",
+                                columns=["Cliente", "Fecha Pedido", "Region", "Punto de Venta"])
+
+# %% Mapeo Región Corona → código DANE (DIVIPOLA)
+# Region de Corona = departamento, con Bogotá separada de Cundinamarca.
+def normalizar(txt):
+    txt = unicodedata.normalize("NFKD", str(txt)).encode("ascii", "ignore").decode()
+    return txt.upper().strip()
+
+REGION_A_DP = {
+    "ANTIOQUIA": 5, "ATLANTICO": 8, "BOGOTA": 11, "BOLIVAR": 13, "BOYACA": 15,
+    "CALDAS": 17, "CAQUETA": 18, "CAUCA": 19, "CESAR": 20, "CORDOBA": 23,
+    "CUNDINAMARCA": 25, "CHOCO": 27, "HUILA": 41, "LA GUAJIRA": 44,
+    "MAGDALENA": 47, "META": 50, "NARINO": 52, "NORTE SANTANDER": 54,
+    "QUINDIO": 63, "RISARALDA": 66, "SANTANDER": 68, "SUCRE": 70,
+    "TOLIMA": 73, "VALLE": 76, "ARAUCA": 81, "CASANARE": 85, "PUTUMAYO": 86,
+    "SAN ANDRES": 88, "AMAZONAS": 91, "GUAINIA": 94, "GUAVIARE": 95,
+    "VAUPES": 97, "VICHADA": 99,
+}
+
+# %% Generaciones (rango de edad en 2026 → año de nacimiento)
+GENERACIONES = {           # edad en 2026 (incluye ambos extremos)
+    "Gen Z": (19, 29),
+    "Millennial": (30, 45),
+    "Gen X": (46, 61),
+    "Boomer": (62, 68),
+}
+ORDEN_GEN = list(GENERACIONES)
+
+def generacion_por_edad(edad_2026):
+    for gen, (lo, hi) in GENERACIONES.items():
+        if lo <= edad_2026 <= hi:
+            return gen
+    return None
+
+
+# %% Población DANE en formato largo: (dp, anio, edad, poblacion)
+def cargar_poblacion_dane(ruta):
+    """Lee el anexo departamental del DANE (actualizado el 30-jul-2025) y devuelve
+    población total (ambos sexos, área total) por departamento, año y edad simple.
+    Hoja 'PobDepartamentalxÁreaSexoEdad': encabezados en la fila 9; las 4 primeras
+    columnas son DP, DPNOM, AÑO, ÁREA GEOGRÁFICA; las edades del total por sexos
+    vienen como 'Total 0 años', 'Total 1 año', ..., 'Total 100 años y más'."""
+    df = pd.read_excel(ruta, sheet_name="PobDepartamentalxÁreaSexoEdad", header=8)
+    c = list(df.columns)
+    df = df.rename(columns={c[0]: "dp", c[1]: "dpnom", c[2]: "anio", c[3]: "area"})
+    df = df[df["area"] == "Total"].dropna(subset=["dp"])
+    cols_edad = [col for col in df.columns
+                 if isinstance(col, str) and col.startswith("Total ") and "año" in col]
+    assert len(cols_edad) == 101, f"Se esperaban 101 edades (0 a 100+), hay {len(cols_edad)}"
+    largo = df.melt(id_vars=["dp", "anio"], value_vars=cols_edad,
+                    var_name="edad", value_name="poblacion")
+    largo["edad"] = largo["edad"].str.extract(r"(\d+)", expand=False).astype(int)
+    largo["dp"] = largo["dp"].astype(int)
+    largo["anio"] = largo["anio"].astype(int)
+    return largo[["dp", "anio", "edad", "poblacion"]]
+
+pob = cargar_poblacion_dane(ARCHIVO_DANE)
+print(f"Población DANE: {pob['dp'].nunique()} departamentos, años {pob['anio'].min()}–{pob['anio'].max()}")
+
+def poblacion_generacion(anio):
+    """Población por dp y generación en un año dado. La generación es una
+    cohorte de nacimiento fija: en 2024 cada cohorte tiene 2 años menos que en 2026."""
+    p = pob[pob["anio"] == anio].copy()
+    p["edad_2026"] = p["edad"] + (2026 - anio)
+    p["generacion"] = p["edad_2026"].map(generacion_por_edad)
+    return (p.dropna(subset=["generacion"])
+             .groupby(["dp", "generacion"], as_index=False)["poblacion"].sum())
+
+
+# %% Clientes consumidores por departamento y generación
+cf = clientes[(clientes["Tipo Cliente"] == "Consumidor final")
+              & clientes["generacion"].isin(ORDEN_GEN)].copy()
+cf["dp"] = cf["region_dominante"].map(lambda r: REGION_A_DP.get(normalizar(r)))
+sin_region = cf["dp"].isna().sum()
+print(f"Consumidores con generación: {len(cf):,} | sin región identificable (excluidos): "
+      f"{sin_region:,} ({sin_region/len(cf):.1%})")
+cf = cf.dropna(subset=["dp"])
+cf["dp"] = cf["dp"].astype(int)
+
+nombre_dp = (cf.groupby("dp")["region_dominante"].first()
+               .map(lambda r: normalizar(r).title()))
+
+# %% Departamento sede de cada punto de venta
+ventas_pdv = (transacciones.assign(dp=transacciones["Region"].map(lambda r: REGION_A_DP.get(normalizar(r))))
+              .dropna(subset=["dp"])
+              .groupby(["Punto de Venta", "dp"]).size().rename("lineas").reset_index())
+ventas_pdv["participacion"] = ventas_pdv["lineas"] / ventas_pdv.groupby("Punto de Venta")["lineas"].transform("sum")
+sede_pdv = ventas_pdv.sort_values("participacion", ascending=False).drop_duplicates("Punto de Venta")
+print(f"Puntos de venta: {len(sede_pdv)} | participación mediana de su departamento sede: "
+      f"{sede_pdv['participacion'].median():.0%}")
+tiendas_dp = sede_pdv.groupby("dp").size().rename("tiendas")
+tiendas_dp.index = tiendas_dp.index.astype(int)
+
+# %% Penetración (periodo completo, población 2025)
+conteo = cf.groupby(["dp", "generacion"]).size().rename("clientes").reset_index()
+pen = (poblacion_generacion(ANIO_POBLACION)
+       .merge(conteo, on=["dp", "generacion"], how="left")
+       .fillna({"clientes": 0}))
+pen["departamento"] = pen["dp"].map(nombre_dp)
+pen["por_mil"] = pen["clientes"] / pen["poblacion"] * 1000
+
+nacional = pen.groupby("generacion")[["clientes", "poblacion"]].sum()
+nacional["por_mil"] = nacional["clientes"] / nacional["poblacion"] * 1000
+pen["indice_vs_nacional"] = pen["por_mil"] / pen["generacion"].map(nacional["por_mil"]) * 100
+
+pen["tiendas"] = pen["dp"].map(tiendas_dp).fillna(0).astype(int)
+pen["tipo_oportunidad"] = np.where(pen["tiendas"] > 0, "Activación", "Expansión")
+
+# Brecha frente al P75 de los departamentos CON tienda y base suficiente
+p75 = (pen[(pen["clientes"] >= MIN_CLIENTES) & (pen["tiendas"] > 0)]
+       .groupby("generacion")["por_mil"].quantile(0.75))
+pen["p75_generacion"] = pen["generacion"].map(p75)
+pen["clientes_potenciales"] = (
+    (pen["p75_generacion"] - pen["por_mil"]).clip(lower=0) * pen["poblacion"] / 1000
+).round()
+pen["base_suficiente"] = pen["clientes"] >= MIN_CLIENTES
+
+print("\nPENETRACIÓN NACIONAL POR GENERACIÓN (clientes por cada 1.000 habitantes)")
+print(nacional.reindex(ORDEN_GEN).round(2))
+
+# %% Tabla departamento × generación
+tabla = pen.pivot_table(index="departamento", columns="generacion",
+                        values="por_mil").reindex(columns=ORDEN_GEN)
+tabla["Total"] = (pen.groupby("departamento")["clientes"].sum()
+                  / pen.groupby("departamento")["poblacion"].sum() * 1000)
+tabla["Tiendas"] = pen.groupby("departamento")["tiendas"].first()
+tabla = tabla.sort_values("Total", ascending=False)
+print("\nCLIENTES POR CADA 1.000 HABITANTES — departamento × generación")
+print(tabla.round(2).to_string())
+
+# %% Mayores oportunidades (brecha absoluta), separadas por tipo
+oportunidades = (pen[pen["clientes_potenciales"] > 0]
+                 .sort_values("clientes_potenciales", ascending=False)
+                 [["tipo_oportunidad", "departamento", "generacion", "tiendas", "clientes",
+                   "poblacion", "por_mil", "p75_generacion", "indice_vs_nacional",
+                   "clientes_potenciales", "base_suficiente"]])
+for tipo in ["Activación", "Expansión"]:
+    o = oportunidades[oportunidades["tipo_oportunidad"] == tipo]
+    print(f"\nTOP 10 — {tipo.upper()} (clientes adicionales si llegara al P75 de su generación)")
+    print(o.head(10).round(2).to_string(index=False))
+    print(f"Total clientes potenciales ({tipo}): {o['clientes_potenciales'].sum():,.0f}")
+
+# %% Cambio en el tiempo: clientes activos por año (2024 vs 2025)
+# Un cliente cuenta en un año si compró al menos una vez ese año.
+transacciones["anio"] = transacciones["Fecha Pedido"].dt.year
+activos = (transacciones[transacciones["anio"].isin([2024, 2025])]
+           .drop_duplicates(["Cliente", "anio"])
+           .merge(cf[["Cliente", "dp", "generacion"]], on="Cliente"))
+evol = []
+for anio in (2024, 2025):
+    a = activos[activos["anio"] == anio].groupby("generacion").size()
+    p = poblacion_generacion(anio).groupby("generacion")["poblacion"].sum()
+    evol.append(pd.DataFrame({"anio": anio, "clientes_activos": a,
+                              "por_mil": a / p * 1000}))
+evol = pd.concat(evol).reset_index().pivot(index="generacion", columns="anio",
+                                            values=["clientes_activos", "por_mil"])
+evol[("cambio_%", "")] = (evol[("por_mil", 2025)] / evol[("por_mil", 2024)] - 1) * 100
+print("\nPENETRACIÓN ANUAL POR GENERACIÓN (clientes activos por cada 1.000 habitantes)")
+print(evol.reindex(ORDEN_GEN).round(2).to_string())
+
+# %% Guardar
+pen.to_csv(SALIDAS / "penetracion_dep_generacion.csv", index=False, encoding="utf-8-sig")
+tabla.round(3).to_csv(SALIDAS / "penetracion_tabla_por_mil.csv", encoding="utf-8-sig")
+oportunidades.to_csv(SALIDAS / "penetracion_oportunidades.csv", index=False, encoding="utf-8-sig")
+evol.round(3).to_csv(SALIDAS / "penetracion_evolucion_anual.csv", encoding="utf-8-sig")
+print(f"\nResultados guardados en {SALIDAS.resolve()}")

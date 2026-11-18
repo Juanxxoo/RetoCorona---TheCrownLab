@@ -247,6 +247,39 @@ features_segmentadas["segmento_id"] = pd.NA
 
 modelos_finales = {}
 
+# KMeans numera los clusters de forma arbitraria: si cambian los datos, el
+# "cluster 3" de hoy puede ser el "cluster 4" de mañana. Para que los nombres
+# no dependan de ese número, cada cluster se identifica por su PERFIL y se
+# le asigna un id fijo:
+#   - Consolidado: el de mayor valor mediano
+#   - Inactivo (recencia mediana > 365 días) vs. activo
+#   - Entre inactivos: menor valor = bajo vínculo, mayor = vínculo intermedio
+#   - Entre activos: menor valor = reciente de vínculo inicial, mayor = en desarrollo
+ID_POR_PERFIL = {
+    "Consumidor final": {"consolidado": 0, "reciente": 1, "inactivo_bajo": 2,
+                         "en_desarrollo": 3, "inactivo_intermedio": 4},
+    "Empresa": {"inactivo_bajo": 0, "en_desarrollo": 1, "reciente": 2, "consolidado": 3},
+}
+
+def ids_estables(df_tipo, etiquetas, tipo):
+    perfil = (df_tipo.assign(_c=etiquetas)
+              .groupby("_c")[["valor_total", "recencia_dias"]].median())
+    perfiles = {}
+    consolidado = perfil["valor_total"].idxmax()
+    perfiles[consolidado] = "consolidado"
+    resto = perfil.drop(index=consolidado)
+    inactivos = resto[resto["recencia_dias"] > 365].sort_values("valor_total")
+    activos = resto[resto["recencia_dias"] <= 365].sort_values("valor_total")
+    for c, nombre in zip(inactivos.index, ["inactivo_bajo", "inactivo_intermedio"]):
+        perfiles[c] = nombre
+    for c, nombre in zip(activos.index, ["reciente", "en_desarrollo"]):
+        perfiles[c] = nombre
+    esperado = set(ID_POR_PERFIL[tipo])
+    assert set(perfiles.values()) == esperado and len(perfiles) == len(perfil), \
+        f"{tipo}: los perfiles no coinciden con lo esperado ({perfiles}); revisar nombres"
+    mapa = {c: ID_POR_PERFIL[tipo][p] for c, p in perfiles.items()}
+    return np.array([mapa[e] for e in etiquetas])
+
 for tipo, info in poblaciones.items():
     k = K_FINAL[tipo]
     X_scaled = info["X_scaled"]
@@ -258,7 +291,7 @@ for tipo, info in poblaciones.items():
         n_init=10,
     )
 
-    etiquetas = modelo.fit_predict(X_scaled)
+    etiquetas = ids_estables(info["datos"], modelo.fit_predict(X_scaled), tipo)
 
     features_segmentadas.loc[indices, "segmento_tipo"] = etiquetas
 
