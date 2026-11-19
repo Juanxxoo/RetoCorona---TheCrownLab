@@ -10,10 +10,9 @@ import pandas as pd
 df = pd.read_parquet("../data/dataset_limpio.parquet")
 print(f"Transacciones: {df.shape}, Clientes únicos: {df['Cliente'].nunique()}")
 
-# Corona confirmó que las fechas están anonimizadas pero las diferencias entre
-# ellas son reales. Por eso usamos la fecha máxima DEL DATASET como referencia
-# para "hoy" en vez de la fecha real de calendario -- restar contra hoy daría
-# ~24 años de recencia para todo el mundo, sin sentido.
+# Las fechas ya vienen corregidas (+24 años) desde 01_carga_y_limpieza.
+# Igual usamos la fecha máxima DEL DATASET como "hoy": es el corte de la base,
+# y medir recencia contra la fecha de hoy inflaría la recencia de todos.
 FECHA_REFERENCIA = df["Fecha Pedido"].max()
 print(f"Fecha de referencia (máxima del dataset): {FECHA_REFERENCIA.date()}")
 
