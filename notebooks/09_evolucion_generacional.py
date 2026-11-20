@@ -98,3 +98,5 @@ piv.round(2).to_csv(SALIDAS / "generacion_comparacion_ene_jul.csv", encoding="ut
 mz.round(2).to_csv(SALIDAS / "generacion_mezcla_negocios.csv", encoding="utf-8-sig")
 indice_mezcla.round(1).to_csv(SALIDAS / "generacion_indice_mezcla.csv", encoding="utf-8-sig")
 print(f"\nResultados guardados en {SALIDAS.resolve()}")
+
+# %%

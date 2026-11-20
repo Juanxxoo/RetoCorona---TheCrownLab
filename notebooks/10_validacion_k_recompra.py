@@ -110,3 +110,6 @@ res.to_csv(SALIDAS / "validacion_k_recompra.csv", index=False, encoding="utf-8-s
 pd.concat({f"{t} K={k}": v for (t, k), v in detalle.items()}).to_csv(
     SALIDAS / "validacion_k_detalle_segmentos.csv", encoding="utf-8-sig")
 print(f"\nResultados guardados en {SALIDAS.resolve()}")
+
+
+# %%
