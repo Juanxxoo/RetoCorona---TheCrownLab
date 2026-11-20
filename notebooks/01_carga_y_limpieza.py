@@ -111,6 +111,69 @@ print(f"Filas fuera del diagnóstico (faltantes, ceros, negativos): {(~valido).s
 # Ninguna fila se elimina
 trans_normales = trans.copy()
 
+# %%
+# Validación adicional: comprobar que el problema está en Valor
+
+# Recuperamos el factor original, antes de corregir Valor
+valido_original = (
+    trans["Cantidad"].notna()
+    & trans["Precio"].notna()
+    & trans["Valor_original"].notna()
+    & (trans["Cantidad"] > 0)
+    & (trans["Precio"] > 0)
+    & (trans["Valor_original"] > 0)
+)
+
+factor_original = (
+    trans.loc[valido_original, "Cantidad"]
+    * trans.loc[valido_original, "Precio"]
+    / trans.loc[valido_original, "Valor_original"]
+)
+
+# Filas normales vs filas corregidas
+idx_normales = factor_original[
+    ((factor_original / 2.65 - 1).abs() <= 0.02)
+].index
+
+idx_error = trans.index[
+    trans["valor_corregido"] == True
+]
+
+# Mediana de Cantidad y Precio por producto usando solo filas normales
+referencia = (
+    trans.loc[idx_normales]
+    .groupby("Producto")[["Cantidad", "Precio"]]
+    .median()
+    .rename(columns={
+        "Cantidad": "cantidad_mediana_producto",
+        "Precio": "precio_mediano_producto"
+    })
+)
+
+comparacion = (
+    trans.loc[idx_error, ["Producto", "Cantidad", "Precio"]]
+    .join(referencia, on="Producto")
+)
+
+comparacion["ratio_cantidad"] = (
+    comparacion["Cantidad"]
+    / comparacion["cantidad_mediana_producto"]
+)
+
+comparacion["ratio_precio"] = (
+    comparacion["Precio"]
+    / comparacion["precio_mediano_producto"]
+)
+
+print("Mediana ratio Cantidad:")
+print(comparacion["ratio_cantidad"].median())
+
+print("\nMediana ratio Precio:")
+print(comparacion["ratio_precio"].median())
+
+print("\nResumen ratio Precio:")
+print(comparacion["ratio_precio"].describe())
+
 # %% Fix 2b — Etiqueta legible de categoría (código + negocio)
 # Los códigos de categoría solos no se entienden en el informe. Cada categoría
 # pertenece a un único negocio (verificado en 06_market_basket), así que se crea
