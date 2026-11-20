@@ -272,6 +272,66 @@ tabla = tabla.sort_values("Total", ascending=False)
 print("\nCLIENTES POR CADA 1.000 HABITANTES — departamento × generación")
 print(tabla.round(2).to_string())
 
+# %% DIAGNÓSTICO DEL BENCHMARK P75
+
+benchmark = pen[
+    (pen["clientes"] >= MIN_CLIENTES)
+    & (pen["tiendas"] > 0)
+].copy()
+
+print("DEPARTAMENTOS QUE DEFINEN EL P75 POR GENERACIÓN")
+print(
+    benchmark.groupby("generacion")
+    .agg(
+        departamentos=("dp", "nunique"),
+        clientes_min=("clientes", "min"),
+        clientes_mediana=("clientes", "median"),
+        por_mil_min=("por_mil", "min"),
+        por_mil_mediana=("por_mil", "median"),
+        por_mil_max=("por_mil", "max")
+    )
+    .reindex(ORDEN_GEN)
+    .round(2)
+)
+
+print("\nP75 UTILIZADO POR GENERACIÓN")
+print(p75.reindex(ORDEN_GEN).round(2))
+
+# %% VALIDAR CONFIABILIDAD DEL BENCHMARK P75
+
+n_deptos_benchmark = (
+    benchmark.groupby("generacion")["dp"]
+    .nunique()
+)
+
+pen["n_deptos_benchmark"] = (
+    pen["generacion"]
+    .map(n_deptos_benchmark)
+    .fillna(0)
+    .astype(int)
+)
+
+pen["benchmark_confiable"] = (
+    pen["n_deptos_benchmark"] >= 10
+)
+
+# Si el benchmark no es suficientemente robusto,
+# no cuantificamos clientes potenciales.
+pen.loc[
+    ~pen["benchmark_confiable"],
+    "clientes_potenciales"
+] = np.nan
+
+print("CONFIABILIDAD DEL BENCHMARK POR GENERACIÓN")
+print(
+    pen[
+        ["generacion", "n_deptos_benchmark", "benchmark_confiable"]
+    ]
+    .drop_duplicates()
+    .set_index("generacion")
+    .reindex(ORDEN_GEN)
+)
+
 # %% Mayores oportunidades (brecha absoluta), separadas por tipo
 oportunidades = (pen[pen["clientes_potenciales"] > 0]
                  .sort_values("clientes_potenciales", ascending=False)
