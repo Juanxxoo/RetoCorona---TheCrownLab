@@ -99,7 +99,7 @@ valor_por_mes_del_ano
 
 # %% Estacionalidad por categoría corregida
 
-# Crear variables temporales
+# Variables temporales
 df["mes_periodo"] = df["Fecha Pedido"].dt.to_period("M")
 df["numero_mes"] = df["Fecha Pedido"].dt.month
 
@@ -113,12 +113,20 @@ soporte_categorias = (
     .sort_values(ascending=False)
 )
 
-# Seleccionar categorías con soporte >= 1%
+# Solo categorías con soporte >= 1%
 categorias_relevantes = soporte_categorias[
     soporte_categorias / total_pedidos >= 0.01
 ].index
 
 print("Categorías analizadas:", len(categorias_relevantes))
+
+# Total de pedidos Corona en cada mes real
+pedidos_totales_mes = (
+    df.groupby("mes_periodo")["ID Pedido"]
+    .nunique()
+    .rename("pedidos_totales_mes")
+    .reset_index()
+)
 
 # Pedidos de cada categoría en cada mes real
 categoria_mes_real = (
@@ -128,22 +136,34 @@ categoria_mes_real = (
     .reset_index(name="pedidos")
 )
 
-# Promedio de pedidos por mes del año
-# Así evitamos que enero-julio pesen más por tener 3 años observados
+# Controlar por el nivel general de actividad de Corona
+categoria_mes_real = categoria_mes_real.merge(
+    pedidos_totales_mes,
+    on="mes_periodo",
+    how="left"
+)
+
+categoria_mes_real["participacion_mes"] = (
+    categoria_mes_real["pedidos"]
+    / categoria_mes_real["pedidos_totales_mes"]
+)
+
+# Promedio de participación para cada mes del año
+# Así tampoco damos más peso a enero-julio por tener 3 años observados
 categoria_mes_promedio = (
     categoria_mes_real
-    .groupby(["Categoria", "numero_mes"])["pedidos"]
+    .groupby(["Categoria", "numero_mes"])["participacion_mes"]
     .mean()
     .unstack()
 )
 
-# Normalizar cada categoría contra su propio promedio mensual
+# Comparar cada mes contra la participación promedio de su propia categoría
 categoria_mes_rel = categoria_mes_promedio.div(
     categoria_mes_promedio.mean(axis=1),
     axis=0
 )
 
-# Medir amplitud estacional
+# Amplitud estacional ajustada
 variacion_estacional = pd.DataFrame({
     "min_relativo": categoria_mes_rel.min(axis=1),
     "max_relativo": categoria_mes_rel.max(axis=1)
@@ -154,7 +174,6 @@ variacion_estacional["amplitud"] = (
     - variacion_estacional["min_relativo"]
 )
 
-# Mostrar categorías con mayor variación estacional
 variacion_estacional = variacion_estacional.sort_values(
     "amplitud",
     ascending=False
@@ -199,9 +218,11 @@ pedidos_region_cat = (
 share_regional = pedidos_region_cat / pedidos_region_cat.groupby("Categoria").transform("sum")
 concentracion_regional = (share_regional ** 2).groupby("Categoria").sum().rename("concentracion_regional")
 
-# Valor promedio por pedido
+# Valor promedio por pedido de cada categoría
 valor_promedio = (
-    df.groupby("Categoria")["Valor"]
+    df.groupby(["Categoria", "ID Pedido"])["Valor"]
+    .sum()
+    .groupby("Categoria")
     .mean()
     .rename("valor_promedio")
 )
@@ -243,3 +264,101 @@ cortes = {
 perfil_categorias["perfil"] = perfil_categorias.apply(lambda r: etiquetar(r, cortes), axis=1)
 
 perfil_categorias.sort_values("participacion", ascending=False)
+
+# %%
+# Validación: valor promedio por pedido dentro de cada categoría
+
+valor_categoria_pedido = (
+    df.groupby(["Categoria", "ID Pedido"])["Valor"]
+    .sum()
+    .reset_index()
+)
+
+valor_promedio_pedido = (
+    valor_categoria_pedido
+    .groupby("Categoria")["Valor"]
+    .mean()
+    .rename("valor_promedio_pedido")
+)
+
+comparacion_valor = (
+    perfil_categorias[["Categoria", "valor_promedio"]]
+    .merge(
+        valor_promedio_pedido.reset_index(),
+        on="Categoria",
+        how="left"
+    )
+)
+
+comparacion_valor["ratio_nuevo_vs_actual"] = (
+    comparacion_valor["valor_promedio_pedido"]
+    / comparacion_valor["valor_promedio"]
+)
+
+comparacion_valor.sort_values(
+    "valor_promedio_pedido",
+    ascending=False
+).head(15)
+
+# %% Validación de estacionalidad controlando por actividad general del mes
+
+# Total de pedidos Corona en cada mes real
+pedidos_totales_mes = (
+    df.groupby("mes_periodo")["ID Pedido"]
+    .nunique()
+    .rename("pedidos_totales_mes")
+    .reset_index()
+)
+
+# Unir con los pedidos mensuales de cada categoría
+categoria_mes_share = categoria_mes_real.merge(
+    pedidos_totales_mes,
+    on="mes_periodo",
+    how="left"
+)
+
+# Participación de cada categoría dentro de los pedidos de ese mes
+categoria_mes_share["participacion_mes"] = (
+    categoria_mes_share["pedidos"]
+    / categoria_mes_share["pedidos_totales_mes"]
+)
+
+# Promedio de esa participación para cada mes del año
+# (eneros entre sí, febreros entre sí, etc.)
+categoria_participacion_promedio = (
+    categoria_mes_share
+    .groupby(["Categoria", "numero_mes"])["participacion_mes"]
+    .mean()
+    .unstack()
+)
+
+# Normalizar cada categoría contra su propia participación promedio
+categoria_participacion_rel = categoria_participacion_promedio.div(
+    categoria_participacion_promedio.mean(axis=1),
+    axis=0
+)
+
+# Nueva amplitud estacional, ya controlando por el volumen general de Corona
+variacion_estacional_ajustada = pd.DataFrame({
+    "min_relativo_ajustado": categoria_participacion_rel.min(axis=1),
+    "max_relativo_ajustado": categoria_participacion_rel.max(axis=1)
+})
+
+variacion_estacional_ajustada["amplitud_ajustada"] = (
+    variacion_estacional_ajustada["max_relativo_ajustado"]
+    - variacion_estacional_ajustada["min_relativo_ajustado"]
+)
+
+# Comparar la métrica anterior con la ajustada
+comparacion_estacional = (
+    variacion_estacional[["amplitud"]]
+    .join(
+        variacion_estacional_ajustada[["amplitud_ajustada"]],
+        how="inner"
+    )
+    .sort_values("amplitud_ajustada", ascending=False)
+)
+
+comparacion_estacional
+
+# %%
