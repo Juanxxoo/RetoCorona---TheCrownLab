@@ -344,6 +344,49 @@ for tipo in ["Activación", "Expansión"]:
     print(o.head(10).round(2).to_string(index=False))
     print(f"Total clientes potenciales ({tipo}): {o['clientes_potenciales'].sum():,.0f}")
 
+# %% CALIDAD DE LAS OPORTUNIDADES IDENTIFICADAS
+
+resumen_calidad = (
+    oportunidades
+    .groupby(
+        ["tipo_oportunidad", "generacion", "base_suficiente"],
+        as_index=False
+    )
+    .agg(
+        casos=("departamento", "count"),
+        clientes_potenciales=("clientes_potenciales", "sum")
+    )
+)
+
+print("RESUMEN DE OPORTUNIDADES SEGÚN CALIDAD DE BASE")
+print(
+    resumen_calidad
+    .round(0)
+    .to_string(index=False)
+)
+
+print("\nTOP EXPANSIÓN CON BASE SUFICIENTE")
+print(
+    oportunidades[
+        (oportunidades["tipo_oportunidad"] == "Expansión")
+        & (oportunidades["base_suficiente"])
+    ]
+    .head(10)
+    [
+        [
+            "departamento",
+            "generacion",
+            "clientes",
+            "poblacion",
+            "por_mil",
+            "indice_vs_nacional",
+            "clientes_potenciales"
+        ]
+    ]
+    .round(2)
+    .to_string(index=False)
+)
+
 # %% Cambio en el tiempo: clientes activos por año (2024 vs 2025)
 # Un cliente cuenta en un año si compró al menos una vez ese año.
 transacciones["anio"] = transacciones["Fecha Pedido"].dt.year
