@@ -143,16 +143,98 @@ print(
 )
 
 # %% Departamento sede de cada punto de venta
-ventas_pdv = (transacciones.assign(dp=transacciones["Region"].map(lambda r: REGION_A_DP.get(normalizar(r))))
-              .dropna(subset=["dp"])
-              .groupby(["Punto de Venta", "dp"]).size().rename("lineas").reset_index())
-ventas_pdv["participacion"] = ventas_pdv["lineas"] / ventas_pdv.groupby("Punto de Venta")["lineas"].transform("sum")
-sede_pdv = ventas_pdv.sort_values("participacion", ascending=False).drop_duplicates("Punto de Venta")
-print(f"Puntos de venta: {len(sede_pdv)} | participación mediana de su departamento sede: "
-      f"{sede_pdv['participacion'].median():.0%}")
-tiendas_dp = sede_pdv.groupby("dp").size().rename("tiendas")
-tiendas_dp.index = tiendas_dp.index.astype(int)
 
+UMBRAL_SEDE_PDV = 0.80
+
+ventas_pdv = (
+    transacciones
+    .assign(
+        dp=transacciones["Region"].map(
+            lambda r: REGION_A_DP.get(normalizar(r))
+        )
+    )
+    .dropna(subset=["dp"])
+    .groupby(["Punto de Venta", "dp"])
+    .size()
+    .rename("lineas")
+    .reset_index()
+)
+
+ventas_pdv["participacion"] = (
+    ventas_pdv["lineas"]
+    / ventas_pdv.groupby("Punto de Venta")["lineas"].transform("sum")
+)
+
+# Departamento con mayor concentración para cada PdV
+sede_pdv = (
+    ventas_pdv
+    .sort_values("participacion", ascending=False)
+    .drop_duplicates("Punto de Venta")
+)
+
+# Solo aceptamos la sede si al menos 80% de sus líneas
+# corresponden al mismo departamento.
+sede_pdv_clara = sede_pdv[
+    sede_pdv["participacion"] >= UMBRAL_SEDE_PDV
+].copy()
+
+print(
+    f"Puntos de venta totales: {len(sede_pdv)} | "
+    f"participación mediana del departamento dominante: "
+    f"{sede_pdv['participacion'].median():.0%}"
+)
+
+print(
+    f"PdV con sede territorial clara (>= {UMBRAL_SEDE_PDV:.0%}): "
+    f"{len(sede_pdv_clara)} | "
+    f"departamentos con presencia inferida: "
+    f"{sede_pdv_clara['dp'].nunique()}"
+)
+
+tiendas_dp = (
+    sede_pdv_clara
+    .groupby("dp")
+    .size()
+    .rename("tiendas")
+)
+
+tiendas_dp.index = tiendas_dp.index.astype(int)
+# %% DIAGNÓSTICO DE CLARIDAD DE SEDE POR PUNTO DE VENTA
+
+print("Distribución de participación del departamento sede:")
+print(sede_pdv["participacion"].describe().round(3))
+
+print("\nPuntos de venta con sede menos clara:")
+print("Participación < 80%:", (sede_pdv["participacion"] < 0.80).sum())
+print("Participación < 70%:", (sede_pdv["participacion"] < 0.70).sum())
+print("Participación < 60%:", (sede_pdv["participacion"] < 0.60).sum())
+
+print("\n10 PdV con menor concentración territorial:")
+print(
+    sede_pdv[
+        ["Punto de Venta", "dp", "participacion"]
+    ]
+    .sort_values("participacion")
+    .head(10)
+    .round(3)
+    .to_string(index=False)
+)
+
+# %% SENSIBILIDAD DEL UMBRAL PARA ASIGNAR SEDE A UN PDV
+
+for umbral in [0.70, 0.80, 0.90]:
+    pdv_validos = sede_pdv[sede_pdv["participacion"] >= umbral]
+
+    print(f"\nUMBRAL >= {umbral:.0%}")
+    print("PdV con sede suficientemente clara:", len(pdv_validos))
+    print("Departamentos con presencia inferida:", pdv_validos["dp"].nunique())
+
+    print(
+        sorted(
+            pdv_validos["dp"].astype(int).unique().tolist()
+        )
+    )
+    
 # %% Penetración (periodo completo, población 2025)
 conteo = cf.groupby(["dp", "generacion"]).size().rename("clientes").reset_index()
 pen = (poblacion_generacion(ANIO_POBLACION)
