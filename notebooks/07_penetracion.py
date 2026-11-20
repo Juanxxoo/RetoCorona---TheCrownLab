@@ -122,6 +122,26 @@ cf["dp"] = cf["dp"].astype(int)
 nombre_dp = (cf.groupby("dp")["region_dominante"].first()
                .map(lambda r: normalizar(r).title()))
 
+# %% DIAGNÓSTICO DE REGIONES NO MAPEADAS
+
+cf_revision = clientes[
+    (clientes["Tipo Cliente"] == "Consumidor final")
+    & clientes["generacion"].isin(ORDEN_GEN)
+].copy()
+
+cf_revision["region_normalizada"] = cf_revision["region_dominante"].map(normalizar)
+cf_revision["dp_revision"] = cf_revision["region_normalizada"].map(REGION_A_DP)
+
+print("REGIONES NO MAPEADAS:")
+print(
+    cf_revision.loc[
+        cf_revision["dp_revision"].isna(),
+        "region_normalizada"
+    ]
+    .value_counts(dropna=False)
+    .to_string()
+)
+
 # %% Departamento sede de cada punto de venta
 ventas_pdv = (transacciones.assign(dp=transacciones["Region"].map(lambda r: REGION_A_DP.get(normalizar(r))))
               .dropna(subset=["dp"])

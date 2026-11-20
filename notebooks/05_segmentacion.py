@@ -833,3 +833,5 @@ print(
         ["Cliente", "Tipo Cliente", "segmento_tipo", "segmento_id", "nombre_segmento"]
     ].head()
 )
+
+# %%
