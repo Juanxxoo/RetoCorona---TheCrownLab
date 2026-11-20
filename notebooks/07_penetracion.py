@@ -411,3 +411,5 @@ tabla.round(3).to_csv(SALIDAS / "penetracion_tabla_por_mil.csv", encoding="utf-8
 oportunidades.to_csv(SALIDAS / "penetracion_oportunidades.csv", index=False, encoding="utf-8-sig")
 evol.round(3).to_csv(SALIDAS / "penetracion_evolucion_anual.csv", encoding="utf-8-sig")
 print(f"\nResultados guardados en {SALIDAS.resolve()}")
+
+# %%
