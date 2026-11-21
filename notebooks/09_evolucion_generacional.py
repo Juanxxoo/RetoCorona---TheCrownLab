@@ -1,5 +1,14 @@
+# 09 - Evolución generacional
+#
+# Comparamos las generaciones en el tiempo: cuántos clientes nuevos llegan de cada
+# una, cuántos compran cada trimestre, cuánto gastan y en qué negocios.
+#
+# Lee: data/dataset_limpio.parquet y data/features_clientes_segmentados.parquet
+# Guarda: los archivos resultados/generacion_*.csv
+# Después sigue el 10.
+
 # %% [markdown]
-# # Evolución generacional — Reto Corona (Retail)
+# # Evolución generacional - Reto Corona (Retail)
 # Pregunta de Corona: ¿cómo cambia el consumidor entre generaciones?
 #
 # Se compara, por generación y en el tiempo:

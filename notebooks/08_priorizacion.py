@@ -1,5 +1,18 @@
+# 08 - Índice de priorización
+#
+# Juntamos todo lo anterior para decidir dónde actuar primero. A cada combinación
+# de departamento y generación le damos un puntaje con la brecha de penetración,
+# el tamaño de la población, la construcción y el déficit de vivienda, revisamos
+# que el ranking no dependa de los pesos que escogimos y le asignamos una acción.
+#
+# Lee: resultados/penetracion_dep_generacion.csv (del 07), los parquet de data/
+#      y los dos CSV de fuentes externas que están en la raíz del repo
+# Guarda: resultados/priorizacion_oportunidades.csv (es la que usa el Power BI)
+#         y resultados/base_territorial_corregida.csv
+# Después sigue el 09.
+
 # %% [markdown]
-# # Índice de priorización y tabla de acciones — Reto Corona (Retail)
+# # Índice de priorización y tabla de acciones - Reto Corona (Retail)
 # Une todo lo anterior en una sola respuesta: ¿dónde, con quién y con qué negocio
 # debe actuar Corona primero?
 #
@@ -208,6 +221,10 @@ terr.to_csv(
     encoding="utf-8-sig"
 )
 
+
+# %%
+# Para cada departamento y generación buscamos qué segmento sobresale
+# y qué negocio compran menos que el promedio.
 
 # %% Segmento característico de cada celda
 # departamento × generación
@@ -641,6 +658,9 @@ print(
 )
 
 
+# %%
+# Armamos el puntaje y probamos su robustez con 2.000 combinaciones de pesos.
+
 # %% Tabla base del índice
 
 idx = (
@@ -883,6 +903,9 @@ idx[
     )
 )
 
+
+# %%
+# Le asignamos una acción a cada fila y guardamos el ranking.
 
 # %% Acción sugerida
 # Se CONSERVAN las reglas que ya teníamos de 06.

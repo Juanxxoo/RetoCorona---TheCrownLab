@@ -1,3 +1,13 @@
+# 04 - Evolución en el tiempo
+#
+# Miramos cómo se mueven los pedidos y el valor mes a mes y comparamos los años.
+# Ojo: comparamos solo enero a julio, porque 2026 llega hasta julio.
+# También medimos qué categorías son más estacionales. Para eso usamos la
+# participación de cada categoría en los pedidos del mes, así no confundimos
+# estacionalidad con el crecimiento general de Corona.
+#
+# Lee: data/dataset_limpio.parquet (no guarda archivos, solo muestra resultados)
+
 # %% Carga y evolución mensual general
 
 import pandas as pd
@@ -96,6 +106,9 @@ valor_por_mes_del_ano = (
 )
 
 valor_por_mes_del_ano
+
+# %%
+# Estacionalidad por categoría.
 
 # %% Estacionalidad por categoría corregida
 
@@ -197,6 +210,9 @@ for categoria in top_estacionales:
     print(f"Mes mínimo: {serie.idxmin()} -> {serie.min():.2f} veces su promedio")
     print(f"Mes máximo: {serie.idxmax()} -> {serie.max():.2f} veces su promedio")
 
+# %%
+# Perfil de cada categoría: participación, concentración por región y valor por pedido.
+
 # %% Tabla de perfiles por categoría
 
 total_pedidos = df["ID Pedido"].nunique()
@@ -229,7 +245,7 @@ valor_promedio = (
 
 # Amplitud estacional (ya la tienen de la fase 4)
 # Nota: queda NaN para categorías con soporte < 1% (quedaron fuera de
-# categorias_relevantes más arriba) — no es un error, no se calculó estacionalidad
+# categorias_relevantes más arriba) - no es un error, no se calculó estacionalidad
 # para esas por bajo volumen.
 amplitud = variacion_estacional["amplitud"].rename("amplitud_estacional")
 
@@ -264,6 +280,9 @@ cortes = {
 perfil_categorias["perfil"] = perfil_categorias.apply(lambda r: etiquetar(r, cortes), axis=1)
 
 perfil_categorias.sort_values("participacion", ascending=False)
+
+# %%
+# Validaciones de lo anterior.
 
 # %%
 # Validación: valor promedio por pedido dentro de cada categoría

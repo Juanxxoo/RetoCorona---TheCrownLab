@@ -1,3 +1,16 @@
+# 05 - Segmentación de clientes
+#
+# Agrupamos a los clientes con KMeans según cómo compran: recencia, frecuencia,
+# valor total y número de categorías. Lo hacemos por separado para consumidores
+# (5 segmentos) y empresas (4), validamos que los grupos sean estables y luego
+# describimos cada uno.
+# Los nombres de los segmentos los ponemos según su perfil y no según el número
+# que da KMeans, porque ese número cambia cada vez que cambian los datos.
+#
+# Lee: data/features_clientes.parquet y data/dataset_limpio.parquet
+# Guarda: data/features_clientes_segmentados.parquet
+# Después sigue el 06.
+
 # %%
 # SEGMENTACIÓN 1: COMPORTAMIENTO
 # Hacemos la segmentación por separado para consumidores finales y empresas,
@@ -18,6 +31,9 @@ from sklearn.metrics import (
 )
 from sklearn.decomposition import PCA
 
+
+# %%
+# Primero preparamos las variables y probamos varios K antes de escoger.
 
 # %%
 # CARGA DE DATOS Y VARIABLES DEL CLUSTERING
@@ -236,6 +252,9 @@ K_FINAL = {
     "Empresa": 4,
 }
 
+
+# %%
+# Entrenamos el modelo final y revisamos que los grupos sean estables.
 
 # %%
 # ENTRENAMIENTO FINAL POR TIPO DE CLIENTE
@@ -479,6 +498,10 @@ for tipo, info in modelos_finales.items():
 
 
 # %%
+# Ahora describimos cada segmento con variables que NO usamos para armarlos
+# (negocios, canales, región, generación, consentimiento...).
+
+# %%
 # CARGAMOS LA BASE TRANSACCIONAL PARA PERFILAR LOS SEGMENTOS
 
 datos = pd.read_parquet("../data/dataset_limpio.parquet")
@@ -718,6 +741,9 @@ print(perfil_antiguedad.round(2))
 print("\nDURACIÓN ENTRE PRIMERA Y ÚLTIMA COMPRA OBSERVADA")
 print(perfil_duracion.round(2))
 
+
+# %%
+# Tabla resumen y guardado.
 
 # %%
 # TABLA RESUMEN FINAL

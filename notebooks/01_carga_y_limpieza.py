@@ -1,6 +1,17 @@
+# 01 - Carga y limpieza
+#
+# Acá cargamos las dos bases que nos entregó Corona y las dejamos listas para trabajar.
+# Corregimos las fechas (vienen corridas 24 años), los clientes repetidos del maestro
+# y los errores de decimales en Valor. Al final unimos todo en una sola tabla con una
+# fila por cada línea de pedido. No borramos ninguna fila: lo que corregimos queda marcado.
+#
+# Lee: data/base_transaccional.csv y data/maestro_clientes.csv
+# Guarda: data/dataset_limpio.parquet
+# Después sigue el 02.
+
 # %% [markdown]
-# # Carga y limpieza inicial — Reto Corona (Retail)
-# Cada celda está delimitada con `# %%` — en VSCode con la extensión de
+# # Carga y limpieza inicial - Reto Corona (Retail)
+# Cada celda está delimitada con `# %%` - en VSCode con la extensión de
 # Jupyter, esto se comporta como un notebook aunque el archivo sea .py.
 # Ajusta las rutas si tu carpeta `data/` está en otro lugar.
 
@@ -29,7 +40,10 @@ cli = pd.read_csv(
 
 print(f"Transacciones: {trans.shape}, Clientes (crudo, con duplicados): {cli.shape}")
 
-# %% Fix 0 — Corrimiento de fechas (+24 años)
+# %%
+# De aquí hasta el Fix 3 están las correcciones que le hicimos a la base.
+
+# %% Fix 0 - Corrimiento de fechas (+24 años)
 # Las fechas vienen corridas 24 años hacia atrás: enero de 2000 = enero de 2024
 # (señalado en el feedback de la entrega intermedia). Se corrige aquí, al inicio,
 # para que TODO el pipeline (Primera Fecha, RFM, evolución temporal, cruces con
@@ -42,7 +56,7 @@ cli["Primera Fecha"] = cli["Primera Fecha"] + pd.DateOffset(years=CORRIMIENTO_AN
 print(f"Rango real de pedidos: {trans['Fecha Pedido'].min().date()} "
       f"a {trans['Fecha Pedido'].max().date()}")
 
-# %% Fix 1 — Cliente no es llave única en maestro_clientes
+# %% Fix 1 - Cliente no es llave única en maestro_clientes
 # 60,158 clientes tienen 2 filas casi idénticas, solo Primera Fecha difiere.
 # En vez de elegir arbitrariamente cuál de las dos fechas creerle, recalculamos
 # Primera Fecha directamente desde la fuente más confiable: la fecha mínima real
@@ -62,16 +76,16 @@ print(f"Clientes tras deduplicar: {cli_clean.shape[0]} "
 print(f"Clientes sin Primera Fecha recalculada (deberían ser 0): "
       f"{cli_clean['Primera Fecha'].isna().sum()}")
 
-# %% Fix 2 — Errores de decimales en Valor
+# %% Fix 2 - Errores de decimales en Valor
 # Relación de la anonimización: Valor = (Cantidad / 2,65) × Precio.
 # Equivalente: Cantidad × Precio / Valor = 2,65. Se cumple en ~91,4 % de las líneas.
 # En ~8,6 % el factor sale 26,5 / 265 / 2650 (errores de decimales).
 #
 # ¿Qué campo está mal? Se comparó cada fila con error contra la mediana del
 # MISMO producto en las filas sanas:
-#   - Cantidad / referencia ≈ 1,0  → Cantidad está bien
-#   - Precio / referencia   ≈ 1,0  → Precio está bien
-#   - Valor unitario / referencia ≈ 1/10, 1/100, 1/1000 → Valor está DESINFLADO
+#   - Cantidad / referencia ≈ 1,0  -> Cantidad está bien
+#   - Precio / referencia   ≈ 1,0  -> Precio está bien
+#   - Valor unitario / referencia ≈ 1/10, 1/100, 1/1000 -> Valor está DESINFLADO
 # Conclusión: el error está en Valor (le faltan 1, 2 o 3 ceros). Se corrige
 # multiplicando Valor por la potencia detectada. Impacto: +4,5 % en el valor
 # total; 17 % de los clientes cambia su valor total en más de 10 %.
@@ -174,17 +188,17 @@ print(comparacion["ratio_precio"].median())
 print("\nResumen ratio Precio:")
 print(comparacion["ratio_precio"].describe())
 
-# %% Fix 2b — Etiqueta legible de categoría (código + negocio)
+# %% Fix 2b - Etiqueta legible de categoría (código + negocio)
 # Los códigos de categoría solos no se entienden en el informe. Cada categoría
 # pertenece a un único negocio (verificado en 06_market_basket), así que se crea
-# una etiqueta "Negocio · Categoría" para usar en tablas y gráficas.
+# una etiqueta "Negocio - Categoría" para usar en tablas y gráficas.
 assert (trans_normales.groupby("Categoria", observed=True)["Negocio"].nunique() <= 1).all(), \
     "Hay categorías en más de un negocio: revisar antes de etiquetar"
 trans_normales["categoria_label"] = (
     trans_normales["Negocio"].astype(str) + " · " + trans_normales["Categoria"].astype(str)
 )
 
-# %% Fix 3 — Tratamiento de datos
+# %% Fix 3 - Tratamiento de datos
 # Solo ~50% de los clientes consintió. Decisión del equipo: se trabaja con el
 # universo completo de clientes (no se filtra) porque el análisis es agregado
 # y no genera acciones a nivel de cliente individual. Si en una fase posterior
@@ -194,9 +208,12 @@ trans_normales["categoria_label"] = (
 print(cli_clean["Tratamiento Datos"].value_counts(normalize=True))
 cli_con_consentimiento = cli_clean[cli_clean["Tratamiento Datos"] == "SÍ"]
 # Nota: cli_con_consentimiento se deja calculado por si se necesita más adelante,
-# pero el join usa cli_clean (universo completo) — ver justificación arriba.
+# pero el join usa cli_clean (universo completo) - ver justificación arriba.
 
-# %% Join — dataset limpio final
+# %%
+# Ya con todo corregido, unimos transacciones y clientes y guardamos.
+
+# %% Join - dataset limpio final
 df = trans_normales.merge(cli_clean, on="Cliente", how="left")
 print(f"Dataset final: {df.shape}")
 print(f"Clientes sin match en maestro (deberían ser ~0): {df['Tipo Cliente'].isna().sum()}")
@@ -207,7 +224,7 @@ sin_match = df[df["Tipo Cliente"].isna()].copy()
 print(sin_match)
 print("\nClientes únicos sin match:", sin_match["Cliente"].nunique())
 
-# %% Checkpoint — guarda en formato rápido de recargar (requiere pyarrow)
+# %% Checkpoint - guarda en formato rápido de recargar (requiere pyarrow)
 df.to_parquet("../data/dataset_limpio.parquet", index=False)
 print("Guardado en data/dataset_limpio.parquet")
 

@@ -1,3 +1,13 @@
+# 03 - Análisis exploratorio
+#
+# Antes de modelar quisimos entender bien la base: qué periodo cubre, cómo están
+# armados los pedidos, cómo se distribuyen las variables de los clientes, qué tan
+# correlacionadas están y cómo se reparten las compras por región.
+# Este script no guarda nada; lo que encontramos aquí es lo que nos llevó a escoger
+# las variables de la segmentación y del análisis de afinidades.
+#
+# Lee: data/dataset_limpio.parquet y data/features_clientes.parquet
+
 # %% [markdown]
 # # 03. Análisis exploratorio y descriptivo
 #
@@ -21,6 +31,9 @@ print("Columnas:", df.shape[1])
 print("\nBASE A NIVEL CLIENTE")
 print("Clientes:", clientes.shape[0])
 print("Variables:", clientes.shape[1])
+
+# %%
+# Primero revisamos el periodo y cómo están armados los pedidos.
 
 # %% Cobertura general de la información
 
@@ -114,6 +127,10 @@ rangos_df["porcentaje"] = (
 ).round(2)
 
 rangos_df
+
+# %%
+# Ahora miramos a los clientes: tipo, recurrencia, frecuencia, recencia,
+# valor, ticket y cuántos negocios y categorías compran.
 
 # %% Tipo de cliente
 
@@ -276,6 +293,10 @@ print(
     .head(20)
 )
 
+# %%
+# Correlaciones entre variables (de acá salió qué usar en la segmentación)
+# y cómo son las canastas de cada pedido.
+
 # %% Correlaciones entre variables de comportamiento
 
 variables_comportamiento = [
@@ -356,6 +377,9 @@ soporte_categorias_pct = (
 ).round(2)
 
 soporte_categorias_pct
+
+# %%
+# Por último, cómo se reparten pedidos y categorías entre regiones.
 
 # %% Distribución de pedidos por región
 

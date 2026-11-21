@@ -1,3 +1,14 @@
+# 06 - Afinidades de compra (market basket)
+#
+# Buscamos qué negocios y categorías se compran juntos en un mismo pedido,
+# primero en toda la base y luego dentro de cada segmento. Al final nos quedamos
+# con las reglas más útiles para venta cruzada.
+# Ojo: que dos cosas se compren juntas no quiere decir que una cause la otra,
+# por eso las tratamos como hipótesis para probar con un piloto.
+#
+# Lee: data/dataset_limpio.parquet y data/features_clientes_segmentados.parquet
+# No guarda archivos; las reglas que salen de acá las usamos en el 08 y en el piloto.
+
 # %%
 # MARKET BASKET / ANÁLISIS DE AFINIDADES
 # Segmentación final: 5 segmentos de consumidores y 4 de empresas.
@@ -26,6 +37,9 @@ print(
         ["ID Pedido", "Cliente", "Categoria", "Producto", "segmento_id", "nombre_segmento"]
     ].head()
 )
+
+# %%
+# Armamos las canastas: qué categorías tiene cada pedido.
 
 # %%
 # DIAGNÓSTICO PREVIO AL MARKET BASKET
@@ -119,6 +133,9 @@ print("\nPrimeras filas:")
 print(canastas_categorias.head())
 print("\nNúmero de categorías:", canastas_categorias.shape[1])
 print("Número de pedidos:", canastas_categorias.shape[0])
+
+# %%
+# Afinidades en toda la base, entre negocios y entre categorías.
 
 # %%
 # NIVEL 1: AFINIDADES ENTRE NEGOCIOS
@@ -326,6 +343,9 @@ print(
 )
 
 # %%
+# Las mismas afinidades, pero dentro de cada segmento.
+
+# %%
 # PEDIDOS POR SEGMENTO
 # Antes de comparar afinidades entre segmentos,
 # verificamos cuántos pedidos aporta cada grupo.
@@ -515,6 +535,9 @@ print(
     .round(3)
     .to_string(index=False)
 )
+
+# %%
+# Pasamos los pares a reglas A -> B y nos quedamos con las mejores.
 
 # %%
 # REGLAS DIRECCIONALES POR SEGMENTO

@@ -1,5 +1,15 @@
+# 10 - Validación del número de segmentos
+#
+# El jurado nos preguntó por qué usamos K=5 y K=4 si las métricas preferían K=2.
+# Para responder, segmentamos solo con los datos hasta diciembre de 2024 y miramos
+# quién volvió a comprar en 2025 y 2026. Si con más segmentos se predice mejor la
+# recompra, tiene sentido usarlos.
+#
+# Lee: data/dataset_limpio.parquet
+# Guarda: resultados/validacion_k_recompra.csv y resultados/validacion_k_detalle_segmentos.csv
+
 # %% [markdown]
-# # Validación del número de segmentos con recompra futura — Reto Corona (Retail)
+# # Validación del número de segmentos con recompra futura - Reto Corona (Retail)
 # Crítica del jurado: Silhouette y Davies-Bouldin favorecen K=2, pero usamos K=5
 # (consumidores) y K=4 (empresas). ¿Los segmentos adicionales sirven para algo?
 #

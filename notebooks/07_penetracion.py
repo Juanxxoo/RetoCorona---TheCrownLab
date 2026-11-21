@@ -1,5 +1,16 @@
+# 07 - Penetración por generación y departamento
+#
+# Calculamos cuántos clientes tiene Corona por cada 1.000 habitantes de cada
+# generación en cada departamento, con las proyecciones de población del DANE.
+# Con eso vemos dónde hay baja penetración y cuántos clientes se podrían ganar.
+#
+# Lee: data/features_clientes_segmentados.parquet, data/dataset_limpio.parquet
+#      y data/PPED-AreaSexoEdadDep-2018-2050_VP.xlsx (DANE)
+# Guarda: los archivos resultados/penetracion_*.csv
+# Después sigue el 08.
+
 # %% [markdown]
-# # Penetración por generación y departamento — Reto Corona (Retail)
+# # Penetración por generación y departamento - Reto Corona (Retail)
 # Pregunta de Corona: ¿dónde hay baja penetración y cómo cambia entre generaciones?
 #
 # Métrica: clientes consumidores por cada 1.000 habitantes de la misma generación
@@ -17,9 +28,10 @@
 #   Para la comparación anual (2024 vs 2025) cada año usa su propia población.
 # - Presencia física: la base no trae la ubicación de los puntos de venta, pero
 #   cada PdV le vende ~90 % (mediana) a un solo departamento; ese es su departamento
-#   "sede". Con eso se separan dos tipos de oportunidad:
-#     * Activación: hay tienda y la penetración es baja → acción comercial
-#     * Expansión: no hay tienda → decisión de canal (digital, aliados, apertura)
+#   "sede" (solo la aceptamos si al menos el 80 % de sus ventas son de ahí).
+#   Con eso se separan dos tipos de oportunidad:
+#     * Activación: hay tienda y la penetración es baja -> acción comercial
+#     * Expansión: no hay tienda -> decisión de canal (digital, aliados, apertura)
 # - Brecha: clientes adicionales si el departamento llegara al percentil 75
 #   de penetración de esa generación, calculado SOLO entre departamentos con
 #   tienda (el referente justo: compararse con quien sí tiene presencia).
@@ -42,7 +54,7 @@ clientes = pd.read_parquet(DATA / "features_clientes_segmentados.parquet")
 transacciones = pd.read_parquet(DATA / "dataset_limpio.parquet",
                                 columns=["Cliente", "Fecha Pedido", "Region", "Punto de Venta"])
 
-# %% Mapeo Región Corona → código DANE (DIVIPOLA)
+# %% Mapeo Región Corona -> código DANE (DIVIPOLA)
 # Region de Corona = departamento, con Bogotá separada de Cundinamarca.
 def normalizar(txt):
     txt = unicodedata.normalize("NFKD", str(txt)).encode("ascii", "ignore").decode()
@@ -59,7 +71,7 @@ REGION_A_DP = {
     "VAUPES": 97, "VICHADA": 99,
 }
 
-# %% Generaciones (rango de edad en 2026 → año de nacimiento)
+# %% Generaciones (rango de edad en 2026 -> año de nacimiento)
 GENERACIONES = {           # edad en 2026 (incluye ambos extremos)
     "Gen Z": (19, 29),
     "Millennial": (30, 45),
@@ -108,6 +120,10 @@ def poblacion_generacion(anio):
     return (p.dropna(subset=["generacion"])
              .groupby(["dp", "generacion"], as_index=False)["poblacion"].sum())
 
+
+# %%
+# Contamos clientes por departamento y generación, y miramos en qué
+# departamentos hay tienda.
 
 # %% Clientes consumidores por departamento y generación
 cf = clientes[(clientes["Tipo Cliente"] == "Consumidor final")
@@ -235,6 +251,9 @@ for umbral in [0.70, 0.80, 0.90]:
         )
     )
     
+# %%
+# Calculamos la penetración y cuántos clientes faltan frente al percentil 75.
+
 # %% Penetración (periodo completo, población 2025)
 conteo = cf.groupby(["dp", "generacion"]).size().rename("clientes").reset_index()
 pen = (poblacion_generacion(ANIO_POBLACION)
@@ -386,6 +405,9 @@ print(
     .round(2)
     .to_string(index=False)
 )
+
+# %%
+# Comparación 2024 vs 2025 y guardado.
 
 # %% Cambio en el tiempo: clientes activos por año (2024 vs 2025)
 # Un cliente cuenta en un año si compró al menos una vez ese año.
