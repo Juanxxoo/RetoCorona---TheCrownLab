@@ -311,7 +311,11 @@ pedidos_totales_mes = (
 )
 
 # Unir con los pedidos mensuales de cada categoría
-categoria_mes_share = categoria_mes_real.merge(
+# (categoria_mes_real ya trae estas columnas desde el bloque de estacionalidad;
+# se quitan antes de unir para no duplicarlas)
+categoria_mes_share = categoria_mes_real.drop(
+    columns=["pedidos_totales_mes", "participacion_mes"], errors="ignore"
+).merge(
     pedidos_totales_mes,
     on="mes_periodo",
     how="left"
