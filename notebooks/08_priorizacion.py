@@ -989,6 +989,31 @@ idx[
 )
 
 
+# %% Nombre oficial del departamento para mapas
+# Los nombres internos vienen sin tildes ni "de" ("Narino", "Norte Santander"),
+# y los geocodificadores de mapas (Power BI / Azure Maps) pueden ubicarlos mal.
+# Se agrega una columna con el nombre oficial, solo para visualización.
+
+NOMBRE_MAPA = {
+    "Amazonas": "Amazonas", "Antioquia": "Antioquia", "Arauca": "Arauca",
+    "Atlantico": "Atlántico", "Bogota": "Bogotá", "Bolivar": "Bolívar",
+    "Boyaca": "Boyacá", "Caldas": "Caldas", "Caqueta": "Caquetá",
+    "Casanare": "Casanare", "Cauca": "Cauca", "Cesar": "Cesar", "Choco": "Chocó",
+    "Cordoba": "Córdoba", "Cundinamarca": "Cundinamarca", "Guainia": "Guainía",
+    "Guaviare": "Guaviare", "Huila": "Huila", "La Guajira": "La Guajira",
+    "Magdalena": "Magdalena", "Meta": "Meta", "Narino": "Nariño",
+    "Norte Santander": "Norte de Santander", "Putumayo": "Putumayo",
+    "Quindio": "Quindío", "Risaralda": "Risaralda",
+    "San Andres": "San Andrés y Providencia", "Santander": "Santander",
+    "Sucre": "Sucre", "Tolima": "Tolima", "Valle": "Valle del Cauca",
+    "Vaupes": "Vaupés", "Vichada": "Vichada",
+}
+
+idx["departamento_mapa"] = idx["departamento"].map(NOMBRE_MAPA)
+assert idx["departamento_mapa"].notna().all(), \
+    f"Departamentos sin nombre oficial: {idx.loc[idx['departamento_mapa'].isna(), 'departamento'].unique()}"
+
+
 # %% Ranking final
 
 COLS = [
@@ -1012,7 +1037,8 @@ COLS = [
     "puntaje",
     "pct_simulaciones_top10",
     "oportunidad_robusta",
-    "accion_sugerida"
+    "accion_sugerida",
+    "departamento_mapa"   # al final: no cambia el orden que usa Power BI
 ]
 
 

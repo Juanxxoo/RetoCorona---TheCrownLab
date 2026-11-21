@@ -56,6 +56,13 @@ trim = (df.groupby(["trimestre", "generacion"])
 trim["ticket"] = trim["valor"] / trim["pedidos"]
 trim["valor_por_cliente"] = trim["valor"] / trim["activos"]
 
+# Solo trimestres completos: la base llega hasta julio de 2026, así que 2026Q3
+# tendría un solo mes y en una gráfica parecería una caída que no existe.
+ultimo_mes = df["mes"].max()
+completo = trim["trimestre"].map(lambda q: q.asfreq("M", "end") <= ultimo_mes)
+print(f"Trimestres incompletos excluidos: {sorted(trim.loc[~completo, 'trimestre'].astype(str).unique())}")
+trim = trim[completo].copy()
+
 # %% Comparación interanual en el mismo periodo (enero–julio)
 ene_jul = df[df["Fecha Pedido"].dt.month <= 7]
 anual = (ene_jul.groupby(["anio", "generacion"])

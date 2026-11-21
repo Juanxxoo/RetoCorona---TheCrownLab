@@ -61,6 +61,36 @@ def eta2(y, grupos):
     entre = y.groupby(grupos).apply(lambda g: len(g) * (g.mean() - y.mean()) ** 2).sum()
     return entre / total
 
+# %% Nombre de cada grupo según su perfil
+# KMeans numera los grupos de forma arbitraria, así que los números de aquí NO
+# son los mismos segmentos de 05. Se nombran con la misma lógica de 05:
+#   - el de mayor valor mediano es el "consolidado"
+#   - los de mayor recencia son los "inactivos" (2 en consumidores, 1 en empresas,
+#     la misma estructura de la segmentación final). Al corte de dic-2024 ningún
+#     grupo supera 365 días de recencia mediana, por eso se usa el orden y no un umbral.
+#   - entre inactivos: menor valor = bajo vínculo; mayor = vínculo intermedio
+#   - entre activos: menor valor = reciente de vínculo inicial; mayor = en desarrollo
+# Con K=2 los grupos se nombran solo por valor (alto / bajo).
+N_INACTIVOS = {"Consumidor final": 2, "Empresa": 1}
+
+def nombrar_perfiles(tabla, tipo, k):
+    if k == 2:
+        orden = tabla["valor_mediano_2024"].sort_values().index
+        return pd.Series({orden[0]: "Bajo valor", orden[1]: "Alto valor"})
+    nombres = {}
+    consolidado = tabla["valor_mediano_2024"].idxmax()
+    nombres[consolidado] = "Consolidados"
+    resto = tabla.drop(index=consolidado)
+    inactivos = resto["recencia_mediana"].nlargest(N_INACTIVOS[tipo]).index
+    for c, n in zip(resto.loc[inactivos].sort_values("valor_mediano_2024").index,
+                    ["Inactivos de bajo vínculo", "Inactivos de vínculo intermedio"]):
+        nombres[c] = n
+    activos = resto.drop(index=inactivos).sort_values("valor_mediano_2024").index
+    for c, n in zip(activos, ["Recientes de vínculo inicial", "Activos en desarrollo"]):
+        nombres[c] = n
+    assert len(nombres) == len(tabla), f"{tipo} K={k}: no se pudieron nombrar todos los grupos"
+    return pd.Series(nombres)
+
 # %% Evaluar K = 2 a 7 por tipo de cliente
 K_ELEGIDO = {"Consumidor final": 5, "Empresa": 4}
 filas, detalle = [], {}
@@ -86,6 +116,8 @@ for tipo in ["Consumidor final", "Empresa"]:
                                         tasa_recompra=("recompra", "mean"),
                                         valor_futuro_medio=("valor_futuro", "mean"))
                                    .sort_values("tasa_recompra", ascending=False))
+            detalle[(tipo, k)].insert(0, "perfil",
+                                      nombrar_perfiles(detalle[(tipo, k)], tipo, k))
 
 res = pd.DataFrame(filas)
 print("\nPODER PREDICTIVO DE LA SEGMENTACIÓN SOBRE EL COMPORTAMIENTO FUTURO")
